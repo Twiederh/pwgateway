@@ -203,3 +203,30 @@ async def get_aggregates() -> dict[str, int]:
         "load": round(res["load"]["instant_power"]),
         "solar": round(max(res["solar"]["instant_power"], 0)),
     }
+
+@app.get("/backup")
+async def get_soc() -> dict[str, int]:
+    """ Retrieves the backup reserve from the Tesla API.
+
+    Returns:
+        dict: The unadjusted and adjusted backup reserve.
+    """
+    logger.info("get_backup")
+    url = f"https://{POWERWALL}/api/operation"
+    response = do_with_auth(lambda token: requests.get(
+        url=url,
+        cookies={
+            "AuthCookie": token
+        },
+        verify=False,
+        timeout=TIMEOUT))
+
+    check_http_error(response)
+    res = response.json()
+
+    raw_backup = res["backup_reserve_percent"]
+    adjusted_backup = (raw_backup-SOC_ADJUSTMENT) * (100/(100-SOC_ADJUSTMENT))
+    adjusted_backup = max(min(adjusted_backup, 100), 0)
+    return {"raw_backup": round(raw_backup),
+            "adjusted_backup": round(adjusted_backup)
+            }
